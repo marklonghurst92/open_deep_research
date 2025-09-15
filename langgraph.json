@@ -3,6 +3,15 @@
     "graphs": {
       "Deep Researcher": "./src/open_deep_research/deep_researcher.py:deep_researcher"
     },
+    "assistants": {
+      "deep_research": {
+        "graph": "Deep Researcher"
+      },
+      "deep_research_iact": {
+        "graph": "Deep Researcher",
+        "config": {"iact_mode": true}
+      }
+    },
     "python_version": "3.11",
     "env": "./.env",
     "dependencies": [

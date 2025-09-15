@@ -4,6 +4,8 @@ import asyncio
 import logging
 import os
 import warnings
+import json
+import re
 from datetime import datetime, timedelta, timezone
 from typing import Annotated, Any, Dict, List, Literal, Optional
 
@@ -32,6 +34,83 @@ from tavily import AsyncTavilyClient
 from open_deep_research.configuration import Configuration, SearchAPI
 from open_deep_research.prompts import summarize_webpage_prompt
 from open_deep_research.state import ResearchComplete, Summary
+
+
+class ToolRegistry:
+    """Registry for tracking available tools and searching them."""
+
+    def __init__(self) -> None:
+        self._tools: Dict[str, Dict[str, Any]] = {}
+
+    def register(
+        self,
+        name: str,
+        description: str,
+        tags: Optional[List[str]] = None,
+        schema: Optional[Dict[str, Any]] = None,
+        embedding: Optional[List[float]] = None,
+        cost: Optional[float] = None,
+    ) -> None:
+        """Register a new tool with metadata."""
+
+        self._tools[name] = {
+            "name": name,
+            "description": description,
+            "tags": tags or [],
+            "schema": schema,
+            "embedding": embedding,
+            "cost": cost,
+        }
+
+    def search(
+        self,
+        query: str,
+        k: int = 5,
+        filters: Optional[Dict[str, Any]] = None,
+    ) -> List[Dict[str, Any]]:
+        """Naive search over registered tools by name/description/tags."""
+
+        filters = filters or {}
+        tag_filter = set(filters.get("tags", []))
+        results = []
+        for tool in self._tools.values():
+            if tag_filter and not tag_filter.intersection(tool["tags"]):
+                continue
+            score = 0
+            q = query.lower()
+            if q in tool["name"].lower():
+                score += 2
+            if q in tool["description"].lower():
+                score += 1
+            results.append((score, tool))
+        results.sort(key=lambda x: x[0], reverse=True)
+        return [tool for _, tool in results[:k]]
+
+
+def interpret(text: str, style: str = "both") -> Optional[Dict[str, str]]:
+    """Interpret model text for early actions using JSON or regex."""
+
+    if style in ("json", "both"):
+        try:
+            data = json.loads(text.strip())
+            if isinstance(data, dict) and "action" in data:
+                return {
+                    "action": str(data["action"]).upper(),
+                    "content": str(data.get("input", "")),
+                }
+        except Exception:
+            pass
+    if style in ("regex", "both"):
+        pattern = re.compile(r"^(SEARCH|CODE|ASK PARENT|RETURN):\s*(.*)", re.IGNORECASE)
+        for line in text.strip().splitlines():
+            match = pattern.match(line.strip())
+            if match:
+                return {
+                    "action": match.group(1).upper(),
+                    "content": match.group(2),
+                }
+    return None
+
 
 ##########################
 # Tavily Search Tool Utils

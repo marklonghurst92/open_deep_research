@@ -2,7 +2,7 @@
 
 import os
 from enum import Enum
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Literal
 
 from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel, Field
@@ -117,6 +117,40 @@ class Configuration(BaseModel):
             }
         }
     )
+    iact_mode: bool = Field(
+        default=True,
+        metadata={
+            "x_oap_ui_config": {
+                "type": "boolean",
+                "default": True,
+                "description": "Enable IACT supervisor/child workflow",
+            }
+        },
+    )
+    max_depth: int = Field(default=5, metadata={"x_oap_ui_config": {"type": "number", "default": 5, "description": "Maximum depth for IACT call stack"}})
+    max_tool_calls: int = Field(default=20, metadata={"x_oap_ui_config": {"type": "number", "default": 20, "description": "Maximum number of tool calls allowed in IACT mode"}})
+    per_frame_token_budget: int = Field(default=2000, metadata={"x_oap_ui_config": {"type": "number", "default": 2000, "description": "Token budget per frame in IACT mode"}})
+    halt_no_progress_turns: int = Field(default=3, metadata={"x_oap_ui_config": {"type": "number", "default": 3, "description": "Halt after this many turns without progress"}})
+    planner_model: str = Field(default="openai:gpt-4.1-mini", metadata={"x_oap_ui_config": {"type": "text", "default": "openai:gpt-4.1-mini", "description": "Model used for IACT planner"}})
+    coder_model: str = Field(default="openai:gpt-4.1", metadata={"x_oap_ui_config": {"type": "text", "default": "openai:gpt-4.1", "description": "Model used for IACT coder"}})
+    iact_researcher_model: str = Field(default="openai:gpt-4.1", metadata={"x_oap_ui_config": {"type": "text", "default": "openai:gpt-4.1", "description": "Model used for IACT child researcher"}})
+    interpreter_style: Literal["json", "regex", "both"] = Field(
+        default="both",
+        metadata={
+            "x_oap_ui_config": {
+                "type": "select",
+                "default": "both",
+                "description": "Interpreter style for action parsing",
+                "options": [
+                    {"label": "JSON", "value": "json"},
+                    {"label": "Regex", "value": "regex"},
+                    {"label": "Both", "value": "both"},
+                ],
+            }
+        },
+    )
+    streaming_early_action: bool = Field(default=True, metadata={"x_oap_ui_config": {"type": "boolean", "default": True, "description": "Enable streaming early-action loop"}})
+
     # Model Configuration
     summarization_model: str = Field(
         default="openai:gpt-4.1-mini",

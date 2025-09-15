@@ -28,6 +28,8 @@ from open_deep_research.prompts import (
     research_system_prompt,
     transform_messages_into_research_topic_prompt,
 )
+from open_deep_research.iact_nodes import supervisor_node as iact_supervisor_node, child_node as iact_child_node
+from open_deep_research.router import select_tools
 from open_deep_research.state import (
     AgentInputState,
     AgentState,
@@ -50,12 +52,24 @@ from open_deep_research.utils import (
     openai_websearch_called,
     remove_up_to_last_ai_message,
     think_tool,
+    interpret,
+    ToolRegistry,
+    TAVILY_SEARCH_DESCRIPTION,
 )
+from open_deep_research.utils import tavily_search
 
 # Initialize a configurable model that we will use throughout the agent
 configurable_model = init_chat_model(
     configurable_fields=("model", "max_tokens", "api_key"),
 )
+
+tool_registry = ToolRegistry()
+tool_registry.register("tavily_search", TAVILY_SEARCH_DESCRIPTION, tags=["search"])
+tool_registry.register("think_tool", "Strategic reflection", tags=["reasoning"])
+
+async def iact_router(state: AgentState, config: RunnableConfig) -> Command[Literal["iact_child"]]:
+    """Select tools for the upcoming child task."""
+    return Command(goto="iact_child", update=select_tools(state, tool_registry))
 
 async def clarify_with_user(state: AgentState, config: RunnableConfig) -> Command[Literal["write_research_brief", "__end__"]]:
     """Analyze user messages and ask clarifying questions if the research scope is unclear.
@@ -160,8 +174,9 @@ async def write_research_brief(state: AgentState, config: RunnableConfig) -> Com
         max_researcher_iterations=configurable.max_researcher_iterations
     )
     
+    next_node = "iact_supervisor" if configurable.iact_mode else "research_supervisor"
     return Command(
-        goto="research_supervisor", 
+        goto=next_node,
         update={
             "research_brief": response.research_brief,
             "supervisor_messages": {
@@ -708,11 +723,19 @@ deep_researcher_builder = StateGraph(
 deep_researcher_builder.add_node("clarify_with_user", clarify_with_user)           # User clarification phase
 deep_researcher_builder.add_node("write_research_brief", write_research_brief)     # Research planning phase
 deep_researcher_builder.add_node("research_supervisor", supervisor_subgraph)       # Research execution phase
+deep_researcher_builder.add_node("iact_supervisor", iact_supervisor_node)          # IACT supervisor node
+deep_researcher_builder.add_node("iact_router", iact_router)                      # IACT tool router
+deep_researcher_builder.add_node("iact_child", iact_child_node)                    # IACT child agent
 deep_researcher_builder.add_node("final_report_generation", final_report_generation)  # Report generation phase
 
 # Define main workflow edges for sequential execution
 deep_researcher_builder.add_edge(START, "clarify_with_user")                       # Entry point
 deep_researcher_builder.add_edge("research_supervisor", "final_report_generation") # Research to report
+deep_researcher_builder.add_edge("iact_supervisor", "iact_router")                # Supervisor to router
+deep_researcher_builder.add_edge("iact_supervisor", "iact_supervisor")            # Supervisor self-loop
+deep_researcher_builder.add_edge("iact_router", "iact_child")                    # Router to child
+deep_researcher_builder.add_edge("iact_child", "iact_supervisor")                # Child back to supervisor
+deep_researcher_builder.add_edge("iact_supervisor", "final_report_generation")     # IACT path to report
 deep_researcher_builder.add_edge("final_report_generation", END)                   # Final exit point
 
 # Compile the complete deep researcher workflow
