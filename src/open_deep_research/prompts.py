@@ -1,5 +1,17 @@
 """System prompts and prompt templates for the Deep Research agent."""
 
+planner_system_prompt="""You are a planner. You may respond in two ways:
+SPAWN: <child_type> | <subtask>
+DO: <brief step>
+"""
+
+child_system_prompt="""You are a child agent. You may emit:
+SEARCH: <query>
+CODE: <code to run>
+ASK PARENT: <question>
+RETURN: <result>
+"""
+
 clarify_with_user_instructions="""
 These are the messages that have been exchanged so far from the user asking for the report:
 <Messages>

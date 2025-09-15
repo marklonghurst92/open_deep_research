@@ -1,7 +1,7 @@
 """Graph state definitions and data structures for the Deep Research agent."""
 
 import operator
-from typing import Annotated, Optional
+from typing import Annotated, Optional, Any
 
 from langchain_core.messages import MessageLikeRepresentation
 from langgraph.graph import MessagesState
@@ -42,10 +42,20 @@ class ClarifyWithUser(BaseModel):
 
 class ResearchQuestion(BaseModel):
     """Research question and brief for guiding research."""
-    
+
     research_brief: str = Field(
         description="A research question that will be used to guide the research.",
     )
+
+
+class Frame(TypedDict, total=False):
+    """Frame representing a single IACT call stack entry."""
+
+    agent: str
+    task: str
+    parent: Optional[str]
+    scratchpad: Optional[str]
+    budget: Optional[int]
 
 
 ###################
@@ -64,12 +74,19 @@ class AgentInputState(MessagesState):
 
 class AgentState(MessagesState):
     """Main agent state containing messages and research data."""
-    
+
     supervisor_messages: Annotated[list[MessageLikeRepresentation], override_reducer]
     research_brief: Optional[str]
     raw_notes: Annotated[list[str], override_reducer] = []
     notes: Annotated[list[str], override_reducer] = []
     final_report: str
+    call_stack: list[Frame] = []
+    route: Optional[str]
+    child_task: Optional[str]
+    result: Optional[Any]
+    escalate: Optional[bool]
+    ask_user: Optional[str]
+    toolbelt: list[Any] = []
 
 class SupervisorState(TypedDict):
     """State for the supervisor that manages research tasks."""
